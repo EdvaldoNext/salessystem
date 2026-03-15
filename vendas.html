@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Edevaldo do Nascimento Prieto">
+    <title>Relatório de Vendas | Admin</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { 
+            --primary: #3ecf8e; 
+            --danger: #ff4d4d;
+            --dark: #1c1c1c; 
+            --bg: #f0f2f5; 
+        }
+        
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--dark); }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* HEADER & DASHBOARD */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin-bottom: 30px; 
+        }
+        .stat-card { 
+            background: white; padding: 20px; border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; 
+        }
+        .stat-card span { display: block; color: #888; font-size: 0.8em; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-card strong { font-size: 1.5em; color: var(--primary); }
+
+        /* BUSCA */
+        .search-box { width: 100%; margin-bottom: 20px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1em; }
+
+        /* TABELA / CARDS */
+        .table-wrapper { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f9fa; padding: 15px; text-align: left; font-size: 0.75em; color: #666; text-transform: uppercase; }
+        td { padding: 15px; border-top: 1px solid #eee; }
+
+        /* BOTÕES */
+        .btn { text-decoration: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-voltar { background: white; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-delete { background: #fff5f5; color: var(--danger); font-size: 0.8em; }
+        .btn-delete:hover { background: var(--danger); color: white; }
+
+        /* RESPONSIVIDADE (MOBILE-FIRST) */
+        @media (max-width: 768px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { background: white; margin-bottom: 15px; border-radius: 12px; padding: 15px; }
+            td { display: flex; justify-content: space-between; border: none; border-bottom: 1px solid #f0f0f0; padding: 10px 0; }
+            td:last-child { border-bottom: none; padding-top: 15px; }
+            td::before { content: attr(data-label); font-weight: bold; color: #888; font-size: 0.75em; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Relatório de Vendas</h1>
+            <a href="index.html" class="btn btn-voltar"> + Novo Registro</a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span>Total de Vendas</span>
+                <strong id="countVendas">0</strong>
+            </div>
+            <div class="stat-card">
+                <span>Faturamento Total</span>
+                <strong id="totalFaturamento">R$ 0,00</strong>
+            </div>
+        </div>
+
+        <input type="text" id="inputBusca" class="search-box" placeholder="🔎 Buscar por cliente ou produto..." onkeyup="filtrarVendas()">
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Cliente</th>
+                        <th>Produto</th>
+                        <th>Parcelas</th>
+                        <th>Total</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="listaVendas">
+                    <tr><td colspan="6" style="text-align:center">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="supabase.js"></script>
+    <script>
+        let todasAsVendas = [];
+
+        async function carregarVendas() {
+            const { data, error } = await su.from('vendas').select('*').order('created_at', { ascending: false });
+
+            if (error) { alert("Erro: " + error.message); return; }
+            todasAsVendas = data;
+            renderizarVendas(data);
+            atualizarDashboard(data);
+        }
+
+        function renderizarVendas(vendas) {
+            const lista = document.getElementById('listaVendas');
+            
+            lista.innerHTML = vendas.map(v => {
+                const totalNum = v.quantidade * v.valor_unitario;
+                const totalFormatado = totalNum.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                
+                // Cálculo do valor da parcela
+                const qtdParcelas = v.parcelas || 1;
+                const valorParcelaNum = totalNum / qtdParcelas;
+                const valorParcelaFormatado = valorParcelaNum.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+                // Lógica de texto: "À vista" ou "3x de R$ 100,00"
+                const detalheParcela = qtdParcelas > 1 
+                    ? `${qtdParcelas}x de R$ ${valorParcelaFormatado}` 
+                    : 'À vista';
+
+                return `
+                    <tr>
+                        <td data-label="Data">${new Date(v.created_at).toLocaleDateString('pt-BR')}</td>
+                        <td data-label="Cliente"><strong>${v.cliente}</strong></td>
+                        <td data-label="Produto">${v.produto}</td>
+                        <td data-label="Parcelas">${detalheParcela}</td>
+                        <td data-label="Total"><strong>R$ ${totalFormatado}</strong></td>
+                        <td data-label="Ação">
+                            <button class="btn btn-delete" onclick="deletarVenda('${v.id}')">Excluir</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('') || '<tr><td colspan="6" style="text-align:center">Nenhuma venda encontrada.</td></tr>';
+        }
+
+        function atualizarDashboard(vendas) {
+            const total = vendas.reduce((acc, v) => acc + (v.quantidade * v.valor_unitario), 0);
+            document.getElementById('countVendas').innerText = vendas.length;
+            document.getElementById('totalFaturamento').innerText = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function filtrarVendas() {
+            const termo = document.getElementById('inputBusca').value.toLowerCase();
+            const filtradas = todasAsVendas.filter(v => 
+                v.cliente.toLowerCase().includes(termo) || 
+                v.produto.toLowerCase().includes(termo)
+            );
+            renderizarVendas(filtradas);
+        }
+
+        async function deletarVenda(id) {
+            if (!confirm("Tem certeza que deseja excluir esta venda?")) return;
+
+            const { error } = await su.from('vendas').delete().eq('id', id);
+            
+            if (error) {
+                alert("Erro ao excluir!");
+            } else {
+                carregarVendas();
+            }
+        }
+
+        carregarVendas();
+    </script>
+</body>
+</html>

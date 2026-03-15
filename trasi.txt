@@ -1,0 +1,114 @@
+// Seleção de elementos do DOM
+const form = document.getElementById('vendaForm');
+const previewDiv = document.getElementById('preview');
+const tabelaCorpo = document.querySelector('#tabelaVendas tbody');
+
+// --- 1. LÓGICA DE CÁLCULO AUTOMÁTICO (UX) ---
+function atualizarCalculo() {
+    const qtd = parseFloat(document.getElementById('quantidade').value) || 0;
+    const valor = parseFloat(document.getElementById('valor_unitario').value) || 0;
+    const parcelas = parseInt(document.getElementById('parcelas').value);
+
+    const total = qtd * valor;
+    const valorParcela = total / parcelas;
+
+    previewDiv.innerHTML = `
+        <strong>Total:</strong> R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})} | 
+        <strong>Parcelas:</strong> ${parcelas}x de R$ ${valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+    `;
+}
+
+// Ouvintes para atualizar o cálculo enquanto o usuário digita
+document.getElementById('quantidade').addEventListener('input', atualizarCalculo);
+document.getElementById('valor_unitario').addEventListener('input', atualizarCalculo);
+document.getElementById('parcelas').addEventListener('change', atualizarCalculo);
+
+
+// --- 2. FUNÇÃO PARA SALVAR NO SUPABASE ---
+form.addEventListener('submit', async (e) => {
+    e.preventDefault(); // Impede a página de recarregar
+
+    const btn = document.getElementById('btnSalvar');
+    btn.innerText = "Salvando...";
+    btn.disabled = true;
+
+    // Captura os valores do formulário (Exatamente como nas colunas do banco)
+    const dadosVenda = {
+        cliente: document.getElementById('cliente').value,
+        produto: document.getElementById('produto').value,
+        quantidade: parseInt(document.getElementById('quantidade').value),
+        valor_unitario: parseFloat(document.getElementById('valor_unitario').value),
+        parcelas: parseInt(document.getElementById('parcelas').value)
+    };
+
+    // Envio para a tabela 'vendas'
+    const { data, error } = await su
+        .from('vendas') // Nome da tabela que você criou
+        .insert([dadosVenda]);
+
+    if (error) {
+        alert("Erro ao salvar: " + error.message);
+        console.error(error);
+    } else {
+        alert("Venda registrada com sucesso!");
+        form.reset();
+        atualizarCalculo();
+        carregarVendas(); // Atualiza a lista na tela
+    }
+
+    btn.innerText = "Salvar Venda";
+    btn.disabled = false;
+});
+
+
+// --- 3. FUNÇÃO PARA LISTAR VENDAS (Tabela) ---
+async function carregarVendas() {
+    const { data, error } = await su
+        .from('vendas')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Erro ao buscar dados:", error);
+        return;
+    }
+
+    // Limpa a tabela antes de popular
+    tabelaCorpo.innerHTML = '';
+
+    data.forEach(venda => {
+        const total = venda.quantidade * venda.valor_unitario;
+        const dataFormatada = new Date(venda.created_at).toLocaleDateString('pt-BR');
+
+        const linha = `
+            <tr>
+                <td>${dataFormatada}</td>
+                <td>${venda.cliente}</td>
+                <td>${venda.produto}</td>
+                <td>R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+            </tr>
+        `;
+        tabelaCorpo.innerHTML += linha;
+    });
+}
+
+// Iniciar carregando os dados ao abrir a página
+carregarVendas();
+
+// Substitua o trecho dentro do data.forEach no seu app.js por este:
+
+data.forEach(venda => {
+    const total = venda.quantidade * venda.valor_unitario;
+    const dataFormatada = new Date(venda.created_at).toLocaleDateString('pt-BR');
+
+    const linha = `
+        <tr>
+            <td data-label="Data">${dataFormatada}</td>
+            <td data-label="Cliente">${venda.cliente}</td>
+            <td data-label="Produto">${venda.produto}</td>
+            <td data-label="Produto">${venda.parcelas}</td>
+            <td data-label="Total">R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+        </tr>
+    `;
+    tabelaCorpo.innerHTML += linha;
+});
