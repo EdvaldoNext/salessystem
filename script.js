@@ -14,7 +14,7 @@ function atualizarCalculo() {
 
     previewDiv.innerHTML = `
         <strong>Total:</strong> R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})} | 
-        <strong>Parcelas:</strong> ${parcelas > 1 ? parcelas + 'x de R$ ' + valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : 'À vista'}
+        <strong>Parcelas:</strong> ${parcelas > 1 ? parcelas + 'x de R$ ' + valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '30 dias'}
     `;
 }
 
@@ -79,7 +79,7 @@ async function carregarVendas() {
     data.forEach(venda => {
         const total = venda.quantidade * venda.valor_unitario;
         const dataFormatada = new Date(venda.created_at).toLocaleDateString('pt-BR');
-        const detalheParcela = venda.parcelas > 1 ? `${venda.parcelas}x` : 'À vista';
+        const detalheParcela = venda.parcelas > 1 ? `${venda.parcelas}x` : '30 dias';
 
         const linha = `
             <tr>
